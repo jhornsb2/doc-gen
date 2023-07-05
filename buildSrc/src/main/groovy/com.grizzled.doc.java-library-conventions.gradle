@@ -1,0 +1,88 @@
+plugins {
+    id 'java-library'
+    id 'jacoco'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    // Use Maven Central for resolving dependencies.
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok:1.18.28'
+    annotationProcessor 'org.projectlombok:lombok:1.18.28'
+    testCompileOnly 'org.projectlombok:lombok:1.18.28'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.28'
+}
+
+tasks.test {
+    useJUnitPlatform()
+    finalizedBy("jacocoTestReport")
+    testLogging {
+        showStandardStreams = false
+        events("failed")
+        showCauses = true
+        showStackTraces = true
+        setExceptionFormat("full")
+    }
+
+    maxParallelForks = Runtime.runtime.availableProcessors()
+}
+
+jacoco {
+    toolVersion = "0.8.5"
+    reportsDirectory  = file("$buildDir/reports/jacoco")
+}
+
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.1".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.compileJava {
+    options.encoding = "UTF-8"
+    options.warnings = false
+}
+
+tasks.register("codeCoverageReport", JacocoReport) {
+    subprojects { subproject ->
+        subproject.plugins.withType(JacocoPlugin).configureEach {
+            subproject.tasks.matching({ t -> t.extensions.findByType(JacocoTaskExtension) }).configureEach { testTask->
+                if (testTask.extensions.getByType(JacocoTaskExtension).isEnables()) {
+                    sourceSets subproject.sourceSets.main
+                    executionData(testTask)
+                }
+                else {
+                    logger.warn(
+                        'Jacoco  extension is disabled for test tast \'{}\' in project \'{}\'. This test task will be excluded from jacoco report.',
+                        testTask.getName(),
+                        subproject.getName()
+                    )
+                }
+            }
+        }
+    }
+
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
